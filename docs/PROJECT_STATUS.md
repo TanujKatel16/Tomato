@@ -24,3 +24,35 @@ Other commands
 - npm run db:studio opens Prisma Studio.
 - node src/test-db.js runs the read-only database probe. This file loads .env itself.
 - node src/test-user.js runs create/read/update/delete examples. Unlike the database probe, it does not load .env itself, so run it through a process that loads the environment or add dotenv loading before running it directly.
+
+Day 3:
+
+Today we are making models to store in our DB
+-> We learnt that first make your complete flow of DB then write it in prisma(pretty similar to mongo DB), then
+
+run these commands:
+
+npx prisma format    (likhe hue ko acchese formatting krega)
+npx prisma validate  (dekhega ki kya ye sachmei valid schema haina)
+npx prisma migrate dev --name init   (mere blueprint se actual table bnegi migrate hoke)
+
+Now those tables will be automatically written in MySQL and will be saved in your server.
+
+All the models as of now :
+1. User
+2. Address
+3. Restaurant
+4. MenuCategory
+5. MenuItem
+6. Cart
+7. CartItem
+8. Order
+9. OrderItem
+10. Payment
+11. DeliveryPartner
+12. DeliveryAssignment
+13. DeliveryLocation
+14. Notification
+
+Here is the full DB stucture Im planning to make:
+(Tomato Food Delivery Database Schema(1).png)
