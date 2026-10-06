@@ -1,9 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
   output   = "../src/generated/prisma"
@@ -13,13 +7,348 @@ datasource db {
   provider = "mysql"
   url      = env("DATABASE_URL")
 }
+
+enum RestaurantStatus {
+  PENDING
+  ACTIVE
+  PAUSED
+  CLOSED
+}
+
+enum CartStatus {
+  ACTIVE
+  CONVERTED
+  ABANDONED
+}
+
+enum OrderStatus {
+  PENDING_PAYMENT
+  PLACED
+  ACCEPTED
+  PREPARING
+  READY_FOR_PICKUP
+  PICKED_UP
+  DELIVERED
+  CANCELLED
+  PAYMENT_FAILED
+}
+
+enum PaymentStatus {
+  PENDING
+  AUTHORIZED
+  CAPTURED
+  FAILED
+  REFUNDED
+  PARTIALLY_REFUNDED
+}
+
+enum PaymentMethod {
+  CARD
+  UPI
+  WALLET
+  CASH_ON_DELIVERY
+}
+
+enum DeliveryPartnerStatus {
+  OFFLINE
+  AVAILABLE
+  BUSY
+  SUSPENDED
+}
+
+enum AssignmentStatus {
+  OFFERED
+  ACCEPTED
+  REJECTED
+  PICKED_UP
+  COMPLETED
+  CANCELLED
+  EXPIRED
+}
+
+enum NotificationType {
+  ORDER
+  PAYMENT
+  DELIVERY
+  ACCOUNT
+}
+
 model User {
-  id          Int      @id @default(autoincrement())
-  name        String
-  email       String   @unique
-  phoneNumber String?  @unique
-  password    String
-  role        String   @default("CUSTOMER")
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id               Int              @id @default(autoincrement())
+  name             String
+  email            String           @unique @db.VarChar(191)
+  phoneNumber      String?          @unique
+  password         String           @db.VarChar(255)
+  // CUSTOMER, RESTAURANT_OWNER, DELIVERY_PARTNER, or ADMIN. Kept as String for easy role expansion.
+  role             String           @default("CUSTOMER")
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  addresses        Address[]
+  ownedRestaurants Restaurant[]
+  carts            Cart[]
+  orders           Order[]
+  deliveryProfile  DeliveryPartner?
+  notifications    Notification[]
+}
+
+model Address {
+  id            Int      @id @default(autoincrement())
+  userId        Int
+  label         String?  @db.VarChar(50)
+  recipientName String   @db.VarChar(120)
+  phoneNumber   String   @db.VarChar(32)
+  line1         String   @db.VarChar(191)
+  line2         String?  @db.VarChar(191)
+  locality      String   @db.VarChar(120)
+  city          String   @db.VarChar(120)
+  region        String   @db.VarChar(120)
+  postalCode    String   @db.VarChar(20)
+  country       String   @default("IN") @db.Char(2)
+  latitude      Decimal? @db.Decimal(10, 7)
+  longitude     Decimal? @db.Decimal(10, 7)
+  isDefault     Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orders        Order[]
+
+  @@index([userId, isDefault])
+  @@map("addresses")
+}
+
+model Restaurant {
+  id                Int              @id @default(autoincrement())
+  ownerUserId       Int
+  name              String           @db.VarChar(160)
+  description       String?          @db.Text
+  phoneNumber       String?          @db.VarChar(32)
+  email             String?          @db.VarChar(191)
+  streetAddress     String           @db.VarChar(191)
+  locality          String           @db.VarChar(120)
+  city              String           @db.VarChar(120)
+  region            String           @db.VarChar(120)
+  postalCode        String           @db.VarChar(20)
+  country           String           @default("IN") @db.Char(2)
+  latitude          Decimal?         @db.Decimal(10, 7)
+  longitude         Decimal?         @db.Decimal(10, 7)
+  cuisine           String?          @db.VarChar(191)
+  status            RestaurantStatus @default(PENDING)
+  isAcceptingOrders Boolean          @default(false)
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  owner             User             @relation(fields: [ownerUserId], references: [id], onDelete: Restrict)
+  categories        MenuCategory[]
+  menuItems         MenuItem[]
+  carts             Cart[]
+  orders            Order[]
+
+  @@index([ownerUserId])
+  @@index([status, city])
+  @@map("restaurants")
+}
+
+model MenuCategory {
+  id           Int        @id @default(autoincrement())
+  restaurantId Int
+  name         String     @db.VarChar(100)
+  description  String?    @db.VarChar(500)
+  position     Int        @default(0)
+  isActive     Boolean    @default(true)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  items        MenuItem[]
+
+  @@unique([restaurantId, name])
+  @@index([restaurantId, isActive, position])
+  @@map("menu_categories")
+}
+
+model MenuItem {
+  id           Int           @id @default(autoincrement())
+  restaurantId Int
+  categoryId   Int?
+  name         String        @db.VarChar(160)
+  description  String?       @db.Text
+  imageUrl     String?       @db.VarChar(2048)
+  price        Decimal       @db.Decimal(10, 2)
+  isVegetarian Boolean       @default(false)
+  isAvailable  Boolean       @default(true)
+  metadata     Json?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  restaurant   Restaurant    @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  category     MenuCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  cartItems    CartItem[]
+  orderItems   OrderItem[]
+
+  @@index([restaurantId, isAvailable])
+  @@index([categoryId])
+  @@map("menu_items")
+}
+
+model Cart {
+  id           Int        @id @default(autoincrement())
+  userId       Int
+  restaurantId Int
+  status       CartStatus @default(ACTIVE)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Restrict)
+  items        CartItem[]
+
+  @@index([userId, status])
+  @@index([restaurantId])
+  @@map("carts")
+}
+
+model CartItem {
+  id         Int      @id @default(autoincrement())
+  cartId     Int
+  menuItemId Int
+  quantity   Int      @default(1)
+  addedAt    DateTime @default(now())
+  cart       Cart     @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  menuItem   MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Restrict)
+
+  @@unique([cartId, menuItemId])
+  @@index([menuItemId])
+  @@map("cart_items")
+}
+
+model Order {
+  id                  Int                  @id @default(autoincrement())
+  userId              Int
+  restaurantId        Int
+  addressId           Int?
+  status              OrderStatus          @default(PENDING_PAYMENT)
+  currency            String               @default("INR") @db.Char(3)
+  subtotal            Decimal              @db.Decimal(10, 2)
+  deliveryFee         Decimal              @default(0) @db.Decimal(10, 2)
+  tax                 Decimal              @default(0) @db.Decimal(10, 2)
+  discount            Decimal              @default(0) @db.Decimal(10, 2)
+  total               Decimal              @db.Decimal(10, 2)
+  // Snapshot fields preserve delivery destination if the saved address is later edited/deleted.
+  deliveryAddress     Json
+  customerNote        String?              @db.VarChar(1000)
+  placedAt            DateTime             @default(now())
+  acceptedAt          DateTime?
+  deliveredAt         DateTime?
+  cancelledAt         DateTime?
+  updatedAt           DateTime             @updatedAt
+  user                User                 @relation(fields: [userId], references: [id], onDelete: Restrict)
+  restaurant          Restaurant           @relation(fields: [restaurantId], references: [id], onDelete: Restrict)
+  address             Address?             @relation(fields: [addressId], references: [id], onDelete: SetNull)
+  items               OrderItem[]
+  payments            Payment[]
+  deliveryAssignments DeliveryAssignment[]
+
+  @@index([userId, placedAt])
+  @@index([restaurantId, status, placedAt])
+  @@index([status, placedAt])
+  @@map("orders")
+}
+
+model OrderItem {
+  id           Int       @id @default(autoincrement())
+  orderId      Int
+  menuItemId   Int?
+  itemName     String    @db.VarChar(160)
+  unitPrice    Decimal   @db.Decimal(10, 2)
+  quantity     Int
+  lineTotal    Decimal   @db.Decimal(10, 2)
+  itemSnapshot Json?
+  order        Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  menuItem     MenuItem? @relation(fields: [menuItemId], references: [id], onDelete: SetNull)
+
+  @@index([orderId])
+  @@index([menuItemId])
+  @@map("order_items")
+}
+
+model Payment {
+  id                Int           @id @default(autoincrement())
+  orderId           Int
+  status            PaymentStatus @default(PENDING)
+  method            PaymentMethod
+  amount            Decimal       @db.Decimal(10, 2)
+  currency          String        @default("INR") @db.Char(3)
+  provider          String?       @db.VarChar(80)
+  providerPaymentId String?       @unique @db.VarChar(191)
+  idempotencyKey    String?       @unique @db.VarChar(191)
+  failureCode       String?       @db.VarChar(100)
+  failureMessage    String?       @db.VarChar(500)
+  paidAt            DateTime?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  order             Order         @relation(fields: [orderId], references: [id], onDelete: Restrict)
+
+  @@index([orderId, createdAt])
+  @@index([status, createdAt])
+  @@map("payments")
+}
+
+model DeliveryPartner {
+  id             Int                   @id @default(autoincrement())
+  userId         Int                   @unique
+  vehicleType    String?               @db.VarChar(50)
+  vehicleNumber  String?               @db.VarChar(32)
+  status         DeliveryPartnerStatus @default(OFFLINE)
+  lastLatitude   Decimal?              @db.Decimal(10, 7)
+  lastLongitude  Decimal?              @db.Decimal(10, 7)
+  lastLocationAt DateTime?
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+  user           User                  @relation(fields: [userId], references: [id], onDelete: Restrict)
+  assignments    DeliveryAssignment[]
+  locations      DeliveryLocation[]
+
+  @@index([status, lastLocationAt])
+  @@map("delivery_partners")
+}
+
+model DeliveryAssignment {
+  id                Int              @id @default(autoincrement())
+  orderId           Int
+  deliveryPartnerId Int
+  status            AssignmentStatus @default(OFFERED)
+  offeredAt         DateTime         @default(now())
+  acceptedAt        DateTime?
+  pickedUpAt        DateTime?
+  completedAt       DateTime?
+  cancelledAt       DateTime?
+  order             Order            @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  deliveryPartner   DeliveryPartner  @relation(fields: [deliveryPartnerId], references: [id], onDelete: Restrict)
+
+  @@index([orderId, status])
+  @@index([deliveryPartnerId, status, offeredAt])
+  @@map("delivery_assignments")
+}
+
+model DeliveryLocation {
+  id                BigInt          @id @default(autoincrement())
+  deliveryPartnerId Int
+  latitude          Decimal         @db.Decimal(10, 7)
+  longitude         Decimal         @db.Decimal(10, 7)
+  recordedAt        DateTime        @default(now())
+  deliveryPartner   DeliveryPartner @relation(fields: [deliveryPartnerId], references: [id], onDelete: Cascade)
+
+  @@index([deliveryPartnerId, recordedAt])
+  @@map("delivery_locations")
+}
+
+model Notification {
+  id        BigInt           @id @default(autoincrement())
+  userId    Int
+  type      NotificationType
+  title     String           @db.VarChar(160)
+  body      String           @db.VarChar(1000)
+  data      Json?
+  readAt    DateTime?
+  createdAt DateTime         @default(now())
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt, createdAt])
+  @@map("notifications")
 }

@@ -22,3 +22,5 @@ Check `GET /health` for a JSON response indicating that the backend process is r
 See [Project progress and learning plan](docs/PROJECT_STATUS.md) for the implemented foundation, current gaps, and a staged path toward a production-grade application.
 
 For a reusable copy of the current database setup, see [Prisma 7 + MySQL/MariaDB with JavaScript](docs/prisma-mysql-javascript-setup.md).
+
+For the application's full relational model, table keys, relationships, and migration notes, see [Database design](docs/database-design.md).
