@@ -55,4 +55,15 @@ All the models as of now :
 14. Notification
 
 Here is the full DB stucture Im planning to make:
-(Tomato Food Delivery Database Schema(1).png)
+![Schema](image.png)
+
+
+
+DAY-4:
+
+I actually learnt the Prisma way(syntax) to write DB schema.
+?-> can be NULL
+enum can be defined seperately
+Ondelete is important.
+
+![Tips](image-1.png)
